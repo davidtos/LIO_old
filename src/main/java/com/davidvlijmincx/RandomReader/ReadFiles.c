@@ -10,6 +10,8 @@
 #include <liburing.h>
 
 #define MAX_FILES 99999
+
+// TODO: make this easier
 // compile gcc -shared -o libfilemanager.so -fPIC ReadFiles.c
 int file_descriptors[MAX_FILES];
 

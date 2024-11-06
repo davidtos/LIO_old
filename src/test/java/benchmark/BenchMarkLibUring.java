@@ -4,7 +4,6 @@ package benchmark;
 import com.davidvlijmincx.RandomReader.BenchmarkFiles;
 import com.davidvlijmincx.RandomReader.FdGetter;
 import com.davidvlijmincx.RandomReader.IoUringReadMultipleFiles;
-import com.davidvlijmincx.RandomReader.Main;
 import com.davidvlijmincx.generated.io.uring.io_uring_cqe;
 import com.davidvlijmincx.generated.io.uring.liburingtest;
 import org.openjdk.jmh.annotations.*;
@@ -35,7 +34,8 @@ import static org.openjdk.jmh.annotations.Threads.MAX;
 
 
 public class BenchMarkLibUring {
-
+    static int NR_FILES = BenchmarkFiles.benchmarkFilesAsString.length;
+    static Random random = new Random(315315153152442L);
     public static final int NR_OF_FILES = 2211;
 
     public static void main(String[] args) throws RunnerException {
@@ -48,19 +48,19 @@ public class BenchMarkLibUring {
         new Runner(opt).run();
     }
 
-    @Benchmark()
+    // @Benchmark()
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     @OperationsPerInvocation(NR_OF_FILES)
     @Threads(MAX)
     public void readUsingFileChannel(Blackhole blackhole, ExecutionPlanFileChannel plan) throws Throwable {
         final ByteBuffer data = ByteBuffer.allocate(NR_OF_FILES);
-        var paths =  BenchmarkFiles.benchmarkFiles;
+        var paths = BenchmarkFiles.benchmarkFiles;
         for (int i = 0; i < paths.length; i++) {
-            final int fileIndex = plan.random.nextInt(0,plan.files.length);
+            final int fileIndex = plan.random.nextInt(0, plan.files.length);
             final Path path = plan.files[fileIndex];
-            final int fileSize = (int)Files.size(path);
-            final int offset = plan.random.nextInt(0,fileSize- READ_SIZE);
+            final int fileSize = (int) Files.size(path);
+            final int offset = plan.random.nextInt(0, fileSize - READ_SIZE);
             FileChannel fc = plan.fileChannels[fileIndex];
             data.rewind();
             fc.read(data, offset);
@@ -69,7 +69,7 @@ public class BenchMarkLibUring {
     }
 
 
-    @Benchmark()
+    // @Benchmark()
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     @OperationsPerInvocation(NR_OF_FILES)
@@ -90,17 +90,17 @@ public class BenchMarkLibUring {
         final ByteBuffer data = ByteBuffer.allocate(NR_OF_FILES);
 
         for (int i = 0; i < files.length; i++) {
-            final int fileIndex = random.nextInt(0,plan.files.length);
+            final int fileIndex = random.nextInt(0, plan.files.length);
             final Path path = files[fileIndex];
-            final int fileSize = (int)Files.size(path);
-            final int offset = random.nextInt(0,fileSize- READ_SIZE);
+            final int fileSize = (int) Files.size(path);
+            final int offset = random.nextInt(0, fileSize - READ_SIZE);
             FileChannel fc = fileChannels[fileIndex];
             data.rewind();
             fc.read(data, offset);
             blackhole.consume(data);
         }
 
-        for (FileChannel fc: fileChannels) {
+        for (FileChannel fc : fileChannels) {
             try {
                 fc.close();
             } catch (IOException e) {
@@ -109,7 +109,7 @@ public class BenchMarkLibUring {
         }
     }
 
-    @Benchmark()
+    //   @Benchmark()
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     @OperationsPerInvocation(NR_OF_FILES)
@@ -144,11 +144,6 @@ public class BenchMarkLibUring {
 
     }
 
-
-
-
-    static int NR_FILES = BenchmarkFiles.benchmarkFilesAsString.length;
-    static Random random = new Random(315315153152442L);
 
     @Benchmark()
     @BenchmarkMode(Mode.Throughput)
@@ -202,7 +197,7 @@ public class BenchMarkLibUring {
             //// Setting up FDs
 
             String[] paths = BenchmarkFiles.benchmarkFilesAsString;
-            MemorySegment pathsArray = uring.arena.allocate(ValueLayout.ADDRESS, NR_FILES);
+            MemorySegment pathsArray = uring.arena.allocate(ValueLayout.ADDRESS, paths.length);
 
             MemorySegment fdPointer = null;
             try {
@@ -210,13 +205,13 @@ public class BenchMarkLibUring {
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }
-            uring.passFdDirectly(NR_FILES, fdPointer);
+            uring.passFdDirectly(paths.length, fdPointer);
 
             /// Setup reads
 
-            final benchmark.BenchMarkLibUring.FileAtt2[] atts = new benchmark.BenchMarkLibUring.FileAtt2[NR_FILES];
+            final benchmark.BenchMarkLibUring.FileAtt2[] atts = new benchmark.BenchMarkLibUring.FileAtt2[paths.length];
 
-            for (int i = 0; i < NR_FILES; i++) {
+            for (int i = 0; i < paths.length; i++) {
                 final String current_path = paths[i];
                 final int fileSize;
                 try {
@@ -243,17 +238,20 @@ public class BenchMarkLibUring {
 
             uring.submit();
 
+            for (int i = 0; i < paths.length; i++) {
 
-            var pntr = uring.see(uring.arena.allocate(io_uring_cqe.layout()));
-            int userData = liburingtest.io_uring_cqe_get_data(pntr).get(JAVA_INT, 0);
+                var pntr = uring.see(uring.arena.allocate(io_uring_cqe.layout()));
+                int userData = liburingtest.io_uring_cqe_get_data(pntr).get(JAVA_INT, 0);
 
-            blackhole.consume(java.nio.charset.StandardCharsets.UTF_8.decode(attMap.get(userData).buffer.asByteBuffer()));
+                // blackhole.consume(java.nio.charset.StandardCharsets.UTF_8.decode(attMap.get(userData).buffer.asByteBuffer()));
+                blackhole.consume(attMap.get(userData).buffer.asByteBuffer().array());
 
-            uring.seen(pntr);
+                uring.seen(pntr);
 
+            }
 
             try {
-                close_fds.invoke(fdPointer, NR_FILES);
+                close_fds.invoke(fdPointer, paths.length);
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }
