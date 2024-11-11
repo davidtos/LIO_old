@@ -1,7 +1,7 @@
 package benchmark;
 
 
-import com.davidvlijmincx.RandomReader.BenchmarkFiles;
+import com.davidvlijmincx.setup.BenchmarkFiles;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;

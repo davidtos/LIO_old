@@ -2,6 +2,7 @@ package com.davidvlijmincx.RandomReader;
 
 import com.davidvlijmincx.generated.io.uring.io_uring_cqe;
 import com.davidvlijmincx.generated.io.uring.liburingtest;
+import com.davidvlijmincx.setup.BenchmarkFiles;
 
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;

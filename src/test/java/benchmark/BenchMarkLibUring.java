@@ -1,7 +1,7 @@
 package benchmark;
 
 
-import com.davidvlijmincx.RandomReader.BenchmarkFiles;
+import com.davidvlijmincx.setup.BenchmarkFiles;
 import com.davidvlijmincx.RandomReader.FdGetter;
 import com.davidvlijmincx.RandomReader.IoUringReadMultipleFiles;
 import com.davidvlijmincx.generated.io.uring.io_uring_cqe;
