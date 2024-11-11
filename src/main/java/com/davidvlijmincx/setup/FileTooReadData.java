@@ -10,15 +10,15 @@ public record FileTooReadData(String sPath, Path path, int fileSize, int offset,
     final static Random random = new Random(315315153152442L);
     public static final int READ_SIZE = 1024 * 4;
 
-   public static FileTooReadData fromPath(Path path)  {
+    public static FileTooReadData fromPath(Path path) {
         String spath = path.toString();
-       int fileSize;
-       try {
-           fileSize = (int) Files.size(path);
-       } catch (IOException e) {
-           throw new RuntimeException(e);
-       }
-       int offset = random.nextInt(0, fileSize - READ_SIZE);
+        int fileSize;
+        try {
+            fileSize = (int) Files.size(path);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        int offset = random.nextInt(0, fileSize - READ_SIZE);
 
         return new FileTooReadData(spath, path, fileSize, offset, READ_SIZE);
     }
