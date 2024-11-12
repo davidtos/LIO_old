@@ -1,0 +1,165 @@
+package com.davidvlijmincx.newreader;
+
+import com.davidvlijmincx.generated.io.uring.liburingtest;
+import com.davidvlijmincx.setup.BenchmarkFiles;
+import com.davidvlijmincx.setup.FileTooReadData;
+import org.openjdk.jmh.infra.Blackhole;
+
+import java.io.IOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SymbolLookup;
+import java.lang.foreign.ValueLayout;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.Executors;
+
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+import static java.lang.foreign.ValueLayout.JAVA_INT;
+
+public class Main {
+
+    public static void main(String[] args) throws Exception {
+        Main main = new Main();
+        FileTooReadData[] filesTooRead = BenchmarkFiles.filesTooRead;
+
+        // this code for profiling
+
+        SymbolLookup SYMBOL_LOOKUP = SymbolLookup.libraryLookup("/home/david/IdeaProjects/C_project/libfilemanager.so", Arena.global());
+        var q = new QuickReader(filesTooRead.length, true,SYMBOL_LOOKUP);
+
+        main.readUsingFileChannelWithChannelSetup(filesTooRead);
+
+        main.liburin(q, filesTooRead);
+
+        // TODO fix error with more threads
+//        SymbolLookup SYMBOL_LOOKUP = SymbolLookup.libraryLookup("/home/david/IdeaProjects/C_project/libfilemanager.so", Arena.global());
+//
+//        try(var exec = Executors.newFixedThreadPool(10)){
+//            for (int i = 0; i < 1; i++) {
+//                exec.execute(()-> {
+//                    var q = new QuickReader(filesTooRead.length, true,SYMBOL_LOOKUP);
+//                    main.requestThanRead(q, filesTooRead);
+//                });
+//            }
+//        }
+
+
+
+    }
+
+    public void liburin(QuickReader q, FileTooReadData... paths) {
+
+        HashMap<Integer, Holder> fds = new HashMap<>();
+
+        try {
+            for (int i = 0; i < paths.length; i++) {
+                MemorySegment fd = q.openFile(paths[i].sPath());
+
+                MemorySegment buffer =  q.malloc(paths[i].bufferSize());
+                // MemorySegment buffer =  arena.allocate(paths[i].bufferSize());
+                q.submitReadRequest(fd, buffer, buffer.byteSize(), i, paths[i].offset());
+                fds.put(i, new Holder(fd, buffer));
+
+                if(i % 100 == 0){
+                    q.submit();
+                }
+
+            }
+
+            q.submit();
+
+            for (int i = 0; i < paths.length; i++) {
+
+//                MemorySegment pntr = q.readFromCompletion();
+//                int userData = liburingtest.io_uring_cqe_get_data(pntr).get(JAVA_INT, 0);
+//                Holder holder = fds.get(userData);
+//               // System.out.println("a = " + a);
+//                q.seen(pntr);
+//                q.free(holder.buffer());
+//                q.closeFile(holder.fd());
+
+                int userData = q.waitAndSee();
+                Holder holder = fds.get(userData);
+                q.free(holder.buffer());
+                q.closeFile(holder.fd());
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    public void readUsingFileChannelWithChannelSetup(FileTooReadData... files) throws Exception {
+
+        FileChannel[] fileChannels = new FileChannel[files.length];
+        for (int i = 0; i < files.length; i++) {
+            try {
+                fileChannels[i] = FileChannel.open(files[i].path(), StandardOpenOption.READ);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        for (int i = 0; i < files.length; i++) {
+            final ByteBuffer data = ByteBuffer.allocate(files[i].bufferSize());
+            FileChannel fc = fileChannels[i];
+            fc.read(data, files[i].offset());
+           // String fileContent = new String(data.array(), StandardCharsets.UTF_8);
+            // System.out.println("fileContent = " + fileContent);
+        }
+
+        for (FileChannel fc : fileChannels) {
+            try {
+                fc.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+
+//    public static <T> List<T[]> splitArrayInChunks(T[] array, int n) {
+//        List<T[]> chunks = new ArrayList<>();
+//        int chunkSize = (int) Math.ceil((double) array.length / n);
+//
+//        for (int i = 0; i < array.length; i += chunkSize) {
+//            T[] chunk = Arrays.copyOfRange(array, i, Math.min(array.length, i + chunkSize));
+//            chunks.add(chunk);
+//        }
+//
+//        return chunks;
+//    }
+
+
+//public void readFiles(String... paths) throws Exception {
+//
+//    try (var q = new QuickReader(paths.length, true); var arena = Arena.ofConfined()) {
+//        for (int i = 0; i < paths.length; i++) {
+//            MemorySegment fd = q.openFile(paths[i]);
+//
+//            MemorySegment buffer = arena.allocate(1024 * 4);
+//            q.submitReadRequest(fd, buffer, buffer.byteSize(), i, 0);
+//
+//            q.submit();
+//
+//            MemorySegment pntr = q.readFromCompletion();
+//            int userData = liburingtest.io_uring_cqe_get_data(pntr).get(JAVA_INT, 0);
+//            System.out.println("userData = " + userData);
+//            //   System.out.println(java.nio.charset.StandardCharsets.UTF_8.decode(buffer.asByteBuffer()));
+//
+//            q.seen(pntr);
+//            q.closeFile(fd);
+//        }
+//    }
+//}
+
+
+}

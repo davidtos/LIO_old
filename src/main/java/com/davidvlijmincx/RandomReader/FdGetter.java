@@ -5,6 +5,8 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+
 
 public class FdGetter {
 
@@ -14,14 +16,8 @@ public class FdGetter {
             pathsArray.setAtIndex(ValueLayout.ADDRESS, i, arena.allocateFrom(filePaths[i]));
         }
 
-        MemorySegment fdPointer = (MemorySegment) openFilesHandle.invoke(pathsArray, filePaths.length);
-
-        return fdPointer;
+        return (MemorySegment) openFilesHandle.invoke(pathsArray, filePaths.length);
     }
 
-    // FFM API wrapper for the close_files function
-    public static void closeFiles(String[] filePaths, MethodHandle closeFilesHandle, MemorySegment fds) throws Throwable {
-        closeFilesHandle.invoke(fds, filePaths.length);
-    }
 }
 

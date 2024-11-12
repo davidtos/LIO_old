@@ -21,7 +21,7 @@ public class IoUringReadMultipleFiles implements AutoCloseable {
     MethodHandle close;
 
     public IoUringReadMultipleFiles(int qd) {
-        arena = Arena.ofConfined();
+        arena = Arena.ofShared();
 
         MemorySegment ioup = arena.allocate(io_uring_params.layout());
         io_uring_params.flags(ioup, (1 << 1));

@@ -47,11 +47,11 @@ public class IoUringReadExample {
             fd = (int) open.invoke(pathSegment, mode);
 
             // Create an area to of fds to register later
-            MemorySegment fds = arena.allocate(JAVA_INT, 1);
-            fds.setAtIndex(JAVA_INT, 0, fd);
+        //    MemorySegment fds = arena.allocate(JAVA_INT, 1);
+        //    fds.setAtIndex(JAVA_INT, 0, fd);
 
             // register the file descriptor
-            liburingtest.io_uring_register_files(ring, fds, 1);
+       //     liburingtest.io_uring_register_files(ring, fds, 1);
 
             // Create read request, set the polling flag
             MemorySegment sqe = liburingtest.io_uring_get_sqe(ring);
@@ -63,7 +63,7 @@ public class IoUringReadExample {
             // prepare the read
             int fdPosition = 0; // which fd from the array to use
             int offset = 0;
-            liburingtest.io_uring_prep_read(sqe, fdPosition, buff, fileSize, offset);
+            liburingtest.io_uring_prep_read(sqe, fd, buff, fileSize, offset);
 
             // set user data, so it's possible to match requests with cqe
             liburingtest.io_uring_sqe_set_data_long(sqe, 12345L);
