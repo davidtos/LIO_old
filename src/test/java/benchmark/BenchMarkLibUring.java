@@ -48,7 +48,7 @@ public class BenchMarkLibUring {
     }
 
 
-    @Benchmark()
+   // @Benchmark()
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     @OperationsPerInvocation(NR_OF_FILES)
@@ -56,7 +56,6 @@ public class BenchMarkLibUring {
     public void readUsingFileChannel(Blackhole blackhole) throws Throwable {
 
         FileTooReadData[] files = BenchmarkFiles.filesTooRead;
-
 
         FileChannel[] fileChannels = new FileChannel[files.length];
         for (int i = 0; i < files.length; i++) {
@@ -71,8 +70,7 @@ public class BenchMarkLibUring {
             final ByteBuffer data = ByteBuffer.allocate(files[i].bufferSize());
             FileChannel fc = fileChannels[i];
             fc.read(data, files[i].offset());
-            String fileContent = new String(data.array(), StandardCharsets.UTF_8);
-            blackhole.consume(fileContent);
+            blackhole.consume(data.array());
 
         }
 
@@ -90,7 +88,7 @@ public class BenchMarkLibUring {
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     @OperationsPerInvocation(NR_OF_FILES)
-    @Threads(MAX)
+    @Threads(16)
     public void libUring(Blackhole blackhole, ExecutionPlanSmallUring plan) {
 
         var q = plan.q;
@@ -116,21 +114,13 @@ public class BenchMarkLibUring {
 
             for (int i = 0; i < paths.length; i++) {
 
-                MemorySegment pntr = q.readFromCompletion();
-                int userData = liburingtest.io_uring_cqe_get_data(pntr).get(JAVA_INT, 0);
+                int userData = q.waitAndSee();
                 Holder holder = fds.get(userData);
 
-                String a = new String(holder.buffer().toArray(JAVA_BYTE), StandardCharsets.UTF_8);
-                blackhole.consume(a);
+              //  blackhole.consume(holder.buffer().toArray(JAVA_BYTE));
 
-                q.seen(pntr);
                 q.free(holder.buffer());
                 q.closeFile(holder.fd());
-
-//                int userData = q.waitAndSee();
-//                Holder holder = fds.get(userData);
-//                q.free(holder.buffer());
-//                q.closeFile(holder.fd());
             }
 
         } catch (Exception e) {

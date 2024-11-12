@@ -38,20 +38,6 @@ public class Main {
 
         main.liburin(q, filesTooRead);
 
-        // TODO fix error with more threads
-//        SymbolLookup SYMBOL_LOOKUP = SymbolLookup.libraryLookup("/home/david/IdeaProjects/C_project/libfilemanager.so", Arena.global());
-//
-//        try(var exec = Executors.newFixedThreadPool(10)){
-//            for (int i = 0; i < 1; i++) {
-//                exec.execute(()-> {
-//                    var q = new QuickReader(filesTooRead.length, true,SYMBOL_LOOKUP);
-//                    main.requestThanRead(q, filesTooRead);
-//                });
-//            }
-//        }
-
-
-
     }
 
     public void liburin(QuickReader q, FileTooReadData... paths) {
@@ -87,6 +73,9 @@ public class Main {
 
                 int userData = q.waitAndSee();
                 Holder holder = fds.get(userData);
+
+                holder.buffer().toArray(JAVA_BYTE);
+
                 q.free(holder.buffer());
                 q.closeFile(holder.fd());
             }
@@ -112,8 +101,8 @@ public class Main {
             final ByteBuffer data = ByteBuffer.allocate(files[i].bufferSize());
             FileChannel fc = fileChannels[i];
             fc.read(data, files[i].offset());
-           // String fileContent = new String(data.array(), StandardCharsets.UTF_8);
-            // System.out.println("fileContent = " + fileContent);
+            data.array();
+
         }
 
         for (FileChannel fc : fileChannels) {

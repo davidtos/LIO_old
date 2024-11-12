@@ -8,7 +8,7 @@ import java.util.Random;
 public record FileTooReadData(String sPath, Path path, int fileSize, int offset, int bufferSize) {
 
     final static Random random = new Random(315315153152442L);
-    public static final int READ_SIZE = 1024 * 16;
+    public static final int READ_SIZE = 1024 *32;
 
     public static FileTooReadData fromPath(Path path) {
         String spath = path.toString();
