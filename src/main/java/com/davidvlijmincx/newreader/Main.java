@@ -29,14 +29,14 @@ public class Main {
         Main main = new Main();
         FileTooReadData[] filesTooRead = BenchmarkFiles.filesTooRead;
 
-        // this code for profiling
+    //    SymbolLookup SYMBOL_LOOKUP = SymbolLookup.libraryLookup("/home/david/IdeaProjects/C_project/libfilemanager.so", Arena.global());
+        var q = new QuickReader(filesTooRead.length, true);
 
-        SymbolLookup SYMBOL_LOOKUP = SymbolLookup.libraryLookup("/home/david/IdeaProjects/C_project/libfilemanager.so", Arena.global());
-        var q = new QuickReader(filesTooRead.length, true,SYMBOL_LOOKUP);
-
-        main.readUsingFileChannelWithChannelSetup(filesTooRead);
+  //      main.readUsingFileChannelWithChannelSetup(filesTooRead);
 
         main.liburin(q, filesTooRead);
+
+//        main.readFiles(SYMBOL_LOOKUP,filesTooRead[1].sPath());
 
     }
 
@@ -48,12 +48,10 @@ public class Main {
             for (int i = 0; i < paths.length; i++) {
                 MemorySegment fd = q.openFile(paths[i].sPath());
 
-                MemorySegment buffer =  q.malloc(paths[i].bufferSize());
-                // MemorySegment buffer =  arena.allocate(paths[i].bufferSize());
-                q.submitReadRequest(fd, buffer, buffer.byteSize(), i, paths[i].offset());
+                MemorySegment buffer = q.submitReadRequest2(fd, paths[i].bufferSize(), i, paths[i].offset());
                 fds.put(i, new Holder(fd, buffer));
 
-                if(i % 100 == 0){
+                if (i % 100 == 0) {
                     q.submit();
                 }
 
@@ -62,19 +60,11 @@ public class Main {
             q.submit();
 
             for (int i = 0; i < paths.length; i++) {
-
-//                MemorySegment pntr = q.readFromCompletion();
-//                int userData = liburingtest.io_uring_cqe_get_data(pntr).get(JAVA_INT, 0);
-//                Holder holder = fds.get(userData);
-//               // System.out.println("a = " + a);
-//                q.seen(pntr);
-//                q.free(holder.buffer());
-//                q.closeFile(holder.fd());
-
                 int userData = q.waitAndSee();
                 Holder holder = fds.get(userData);
+                //    System.out.println("userData = " + userData);
 
-                holder.buffer().toArray(JAVA_BYTE);
+                System.out.println(java.nio.charset.StandardCharsets.UTF_8.decode(holder.buffer().asByteBuffer()));
 
                 q.free(holder.buffer());
                 q.closeFile(holder.fd());
@@ -128,23 +118,25 @@ public class Main {
 //    }
 
 
-//public void readFiles(String... paths) throws Exception {
+//public void readFiles(SymbolLookup SYMBOL_LOOKUP, String... paths) throws Exception {
 //
-//    try (var q = new QuickReader(paths.length, true); var arena = Arena.ofConfined()) {
+//    try (var q = new QuickReader(paths.length, true, SYMBOL_LOOKUP); var arena = Arena.ofConfined()) {
 //        for (int i = 0; i < paths.length; i++) {
 //            MemorySegment fd = q.openFile(paths[i]);
 //
-//            MemorySegment buffer = arena.allocate(1024 * 4);
+//            MemorySegment buffer =  q.malloc(4); // arena.allocate(4);
 //            q.submitReadRequest(fd, buffer, buffer.byteSize(), i, 0);
 //
 //            q.submit();
 //
-//            MemorySegment pntr = q.readFromCompletion();
-//            int userData = liburingtest.io_uring_cqe_get_data(pntr).get(JAVA_INT, 0);
+////            MemorySegment pntr = q.readFromCompletion();
+////            int userData = liburingtest.io_uring_cqe_get_data(pntr).get(JAVA_INT, 0);
+//            int userData = q.waitAndSee();
 //            System.out.println("userData = " + userData);
-//            //   System.out.println(java.nio.charset.StandardCharsets.UTF_8.decode(buffer.asByteBuffer()));
+//            System.out.println(java.nio.charset.StandardCharsets.UTF_8.decode(buffer.asByteBuffer()));
 //
-//            q.seen(pntr);
+//            q.free(buffer);
+//          //  q.seen(pntr);
 //            q.closeFile(fd);
 //        }
 //    }

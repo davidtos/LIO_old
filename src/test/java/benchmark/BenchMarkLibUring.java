@@ -1,9 +1,7 @@
 package benchmark;
 
 
-import com.davidvlijmincx.generated.io.uring.liburingtest;
 import com.davidvlijmincx.newreader.Holder;
-import com.davidvlijmincx.newreader.QuickReader;
 import com.davidvlijmincx.setup.BenchmarkFiles;
 import com.davidvlijmincx.setup.FileTooReadData;
 import org.openjdk.jmh.annotations.*;
@@ -14,22 +12,13 @@ import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 import java.io.IOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static java.lang.foreign.ValueLayout.JAVA_BYTE;
-import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static org.openjdk.jmh.annotations.Threads.MAX;
 
 
@@ -48,12 +37,12 @@ public class BenchMarkLibUring {
     }
 
 
-   // @Benchmark()
+  //  @Benchmark()
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     @OperationsPerInvocation(NR_OF_FILES)
     @Threads(MAX)
-    public void readUsingFileChannel(Blackhole blackhole) throws Throwable {
+    public void _0_readUsingFileChannel(Blackhole blackhole) throws Throwable {
 
         FileTooReadData[] files = BenchmarkFiles.filesTooRead;
 
@@ -88,8 +77,8 @@ public class BenchMarkLibUring {
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     @OperationsPerInvocation(NR_OF_FILES)
-    @Threads(16)
-    public void libUring(Blackhole blackhole, ExecutionPlanSmallUring plan) {
+    @Threads(MAX)
+    public void _1_libUring(Blackhole blackhole, ExecutionPlanSmallUring plan) {
 
         var q = plan.q;
         var paths = BenchmarkFiles.filesTooRead;
@@ -99,12 +88,10 @@ public class BenchMarkLibUring {
             for (int i = 0; i < paths.length; i++) {
                 MemorySegment fd = q.openFile(paths[i].sPath());
 
-                MemorySegment buffer =  q.malloc(paths[i].bufferSize());
-                // MemorySegment buffer =  arena.allocate(paths[i].bufferSize());
-                q.submitReadRequest(fd, buffer, buffer.byteSize(), i, paths[i].offset());
+                MemorySegment buffer = q.submitReadRequest2(fd, paths[i].bufferSize(), i, paths[i].offset());
                 fds.put(i, new Holder(fd, buffer));
 
-                if(i % 100 == 0){
+                if (i % 20 == 0) {
                     q.submit();
                 }
 
@@ -117,7 +104,7 @@ public class BenchMarkLibUring {
                 int userData = q.waitAndSee();
                 Holder holder = fds.get(userData);
 
-              //  blackhole.consume(holder.buffer().toArray(JAVA_BYTE));
+                  blackhole.consume(holder.buffer().asByteBuffer());
 
                 q.free(holder.buffer());
                 q.closeFile(holder.fd());

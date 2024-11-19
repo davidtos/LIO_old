@@ -18,8 +18,8 @@ public class ExecutionPlanSmallUring {
 
     @Setup
     public void setup() {
-        SymbolLookup SYMBOL_LOOKUP = SymbolLookup.libraryLookup("/home/david/IdeaProjects/C_project/libfilemanager.so", Arena.global());
-        q = new QuickReader(2500,true,SYMBOL_LOOKUP);
+       // SymbolLookup SYMBOL_LOOKUP = SymbolLookup.libraryLookup("/home/david/IdeaProjects/C_project/libfilemanager.so", Arena.global());
+        q = new QuickReader(2500,true);
 
     }
 

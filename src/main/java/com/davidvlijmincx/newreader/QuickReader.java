@@ -1,33 +1,37 @@
 package com.davidvlijmincx.newreader;
 
 import com.davidvlijmincx.generated.io.uring.io_uring;
+
 import com.davidvlijmincx.generated.io.uring.io_uring_cqe;
 import com.davidvlijmincx.generated.io.uring.io_uring_params;
+
 import com.davidvlijmincx.generated.io.uring.liburingtest;
 import com.davidvlijmincx.generated.src.org.libfuse._fuse_off_t_must_be_64bit_dummy_struct;
 
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
 
-import static java.lang.foreign.ValueLayout.ADDRESS;
-import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.*;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
 public class QuickReader implements AutoCloseable {
 
-    private final MethodHandle open_direct;
-    private final MethodHandle close;
-    private final MethodHandle queue_prepped_offset;
-    private final MethodHandle seeAndClose;
-    private final MethodHandle malloc;
-    private final MethodHandle free;
+    private static final MethodHandle open_direct;
+    private static final MethodHandle close;
+    private static final MethodHandle queue_prepped_offset;
+    private static final MethodHandle read_with_offset_buffer;
+    private static final MethodHandle seeAndClose;
+    private static final MethodHandle malloc;
+    private static final MethodHandle mallocLong;
+    private static final MethodHandle alignedAlloc;
+    private static final MethodHandle free;
+    private static final MethodHandle freeLong;
 
     private final MemorySegment ring;
     private final Arena arena;
 
-
-    public QuickReader(int QD, boolean polling, SymbolLookup SYMBOL_LOOKUP) {
-        arena = Arena.ofConfined();
-
+    static {
+        SymbolLookup SYMBOL_LOOKUP = SymbolLookup.libraryLookup("/home/david/IdeaProjects/C_project/libfilemanager.so", Arena.global());
         Linker LINKER = Linker.nativeLinker();
         open_direct = LINKER.downcallHandle(
                 SYMBOL_LOOKUP.find("open_direct").orElseThrow(),
@@ -40,10 +44,25 @@ public class QuickReader implements AutoCloseable {
                 FunctionDescriptor.of(ADDRESS, JAVA_INT)
         );
 
+        mallocLong = LINKER.downcallHandle(
+                LINKER.defaultLookup().find("malloc").orElseThrow(),
+                FunctionDescriptor.of(JAVA_LONG, JAVA_LONG)
+        );
+
+        alignedAlloc = LINKER.downcallHandle(
+                SYMBOL_LOOKUP.find("aligned_alloc").orElseThrow(),
+                FunctionDescriptor.of(ADDRESS, JAVA_INT, JAVA_INT)
+        );
+
 
         free = LINKER.downcallHandle(
                 SYMBOL_LOOKUP.find("free").orElseThrow(),
                 FunctionDescriptor.ofVoid(ADDRESS)
+        );
+
+        freeLong = LINKER.downcallHandle(
+                LINKER.defaultLookup().find("free").orElseThrow(),
+                FunctionDescriptor.ofVoid(JAVA_LONG)
         );
 
         close = LINKER.downcallHandle(
@@ -56,10 +75,23 @@ public class QuickReader implements AutoCloseable {
                 FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, JAVA_INT)
         );
 
+
+        read_with_offset_buffer = Linker.nativeLinker().downcallHandle(
+                SYMBOL_LOOKUP.find("read_with_offset_buffer").orElseThrow(),
+                FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, JAVA_INT)
+        );
+
+
         seeAndClose = Linker.nativeLinker().downcallHandle(
                 SYMBOL_LOOKUP.find("see_and_close").orElseThrow(),
                 FunctionDescriptor.of(JAVA_INT, ValueLayout.ADDRESS)
         );
+    }
+
+
+    public QuickReader(int QD, boolean polling) {
+        arena = Arena.ofConfined();
+
 
         int ret;
         if (polling) {
@@ -91,6 +123,27 @@ public class QuickReader implements AutoCloseable {
         }
     }
 
+    public MemorySegment mallocOpenFile(String path) {
+        try {
+
+            byte[] bytes = path.getBytes();
+            int length = bytes.length;
+            MemorySegment memorySegment = malloc(length + 1);
+
+            MemorySegment.copy(bytes, 0, memorySegment, ValueLayout.JAVA_BYTE, 0, length);
+            memorySegment.set(ValueLayout.JAVA_BYTE, (length), (byte) 0);
+
+            // MemorySegment memorySegment = arena.allocateFrom(path);
+            var o = (MemorySegment) open_direct.invokeExact(memorySegment);
+
+            free(memorySegment);
+            return o;
+
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public void closeFile(MemorySegment seg) {
         try {
             close.invokeExact(seg);
@@ -99,7 +152,7 @@ public class QuickReader implements AutoCloseable {
         }
     }
 
-    public MemorySegment malloc(int size){
+    public MemorySegment malloc(int size) {
         try {
             return ((MemorySegment) malloc.invokeExact(size)).reinterpret(size);
         } catch (Throwable e) {
@@ -107,7 +160,15 @@ public class QuickReader implements AutoCloseable {
         }
     }
 
-    public void free(MemorySegment mem){
+    public MemorySegment alignedAlloc(int alignment, int size) {
+        try {
+            return ((MemorySegment) alignedAlloc.invokeExact(alignment,size)).reinterpret(size);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void free(MemorySegment mem) {
         try {
             free.invoke(mem);
         } catch (Throwable e) {
@@ -133,6 +194,14 @@ public class QuickReader implements AutoCloseable {
         }
     }
 
+    public MemorySegment submitReadRequest2(MemorySegment fd, long bufferSize, long userDate, int offset) {
+        try {
+            return ((MemorySegment) read_with_offset_buffer.invokeExact(ring, fd, bufferSize, userDate, offset)).reinterpret(bufferSize);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public MemorySegment readFromCompletion() {
         var pntr = arena.allocate(io_uring_cqe.layout());
         liburingtest.io_uring_wait_cqe(ring, pntr);
@@ -143,7 +212,7 @@ public class QuickReader implements AutoCloseable {
         liburingtest.io_uring_cqe_seen(ring, cqePtr);
     }
 
-    public int waitAndSee(){
+    public int waitAndSee() {
         try {
             return (int) seeAndClose.invokeExact(ring);
         } catch (Throwable e) {
