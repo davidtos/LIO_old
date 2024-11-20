@@ -29,10 +29,9 @@ public class Main {
         Main main = new Main();
         FileTooReadData[] filesTooRead = BenchmarkFiles.filesTooRead;
 
-    //    SymbolLookup SYMBOL_LOOKUP = SymbolLookup.libraryLookup("/home/david/IdeaProjects/C_project/libfilemanager.so", Arena.global());
         var q = new QuickReader(filesTooRead.length, true);
 
-  //      main.readUsingFileChannelWithChannelSetup(filesTooRead);
+        main.readUsingFileChannelWithChannelSetup(filesTooRead);
 
         main.liburin(q, filesTooRead);
 
@@ -64,7 +63,8 @@ public class Main {
                 Holder holder = fds.get(userData);
                 //    System.out.println("userData = " + userData);
 
-                System.out.println(java.nio.charset.StandardCharsets.UTF_8.decode(holder.buffer().asByteBuffer()));
+               System.out.println(java.nio.charset.StandardCharsets.UTF_8.decode(holder.buffer().asByteBuffer()));
+             //   holder.buffer().getString()
 
                 q.free(holder.buffer());
                 q.closeFile(holder.fd());
@@ -91,7 +91,7 @@ public class Main {
             final ByteBuffer data = ByteBuffer.allocate(files[i].bufferSize());
             FileChannel fc = fileChannels[i];
             fc.read(data, files[i].offset());
-            data.array();
+            System.out.println(java.nio.charset.StandardCharsets.UTF_8.decode(data));
 
         }
 

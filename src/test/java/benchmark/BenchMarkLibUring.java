@@ -37,7 +37,7 @@ public class BenchMarkLibUring {
     }
 
 
-  //  @Benchmark()
+    @Benchmark()
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     @OperationsPerInvocation(NR_OF_FILES)
@@ -59,7 +59,7 @@ public class BenchMarkLibUring {
             final ByteBuffer data = ByteBuffer.allocate(files[i].bufferSize());
             FileChannel fc = fileChannels[i];
             fc.read(data, files[i].offset());
-            blackhole.consume(data.array());
+            blackhole.consume(data);
 
         }
 
@@ -104,7 +104,7 @@ public class BenchMarkLibUring {
                 int userData = q.waitAndSee();
                 Holder holder = fds.get(userData);
 
-                  blackhole.consume(holder.buffer().asByteBuffer());
+                blackhole.consume(holder.buffer().asByteBuffer());
 
                 q.free(holder.buffer());
                 q.closeFile(holder.fd());
