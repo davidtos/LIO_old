@@ -15,10 +15,12 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 
+import static java.nio.charset.StandardCharsets.US_ASCII;
 import static org.openjdk.jmh.annotations.Threads.MAX;
 
 
@@ -56,10 +58,13 @@ public class BenchMarkLibUring {
         }
 
         for (int i = 0; i < files.length; i++) {
+//            final ByteBuffer data = ByteBuffer.allocate(files[i].bufferSize());
             final ByteBuffer data = ByteBuffer.allocate(files[i].bufferSize());
             FileChannel fc = fileChannels[i];
             fc.read(data, files[i].offset());
-            blackhole.consume(data);
+//            blackhole.consume(data);
+            blackhole.consume(US_ASCII.decode(data));
+
 
         }
 
@@ -78,17 +83,17 @@ public class BenchMarkLibUring {
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     @OperationsPerInvocation(NR_OF_FILES)
     @Threads(MAX)
-    public void _1_libUring(Blackhole blackhole, ExecutionPlanSmallUring plan) {
+    public void _1_libUring_CopyAndCreateString(Blackhole blackhole, ExecutionPlanSmallUring plan) {
 
-        var q = plan.q;
-        var paths = BenchmarkFiles.filesTooRead;
-        HashMap<Integer, Holder> fds = new HashMap<>();
+        final var q = plan.q;
+        final var paths = BenchmarkFiles.filesTooRead;
+        final HashMap<Integer, Holder> fds = new HashMap<>();
 
         try {
             for (int i = 0; i < paths.length; i++) {
-                MemorySegment fd = q.openFile(paths[i].sPath());
+                final int fd = q.open(paths[i].sPath());
 
-                MemorySegment buffer = q.submitReadRequest2(fd, paths[i].bufferSize(), i, paths[i].offset());
+                final MemorySegment buffer = q.submitReadRequest2(fd, paths[i].bufferSize(), i, paths[i].offset());
                 fds.put(i, new Holder(fd, buffer));
 
                 if (i % 20 == 0) {
@@ -101,10 +106,15 @@ public class BenchMarkLibUring {
 
             for (int i = 0; i < paths.length; i++) {
 
-                int userData = q.waitAndSee();
-                Holder holder = fds.get(userData);
+                final int userData = q.waitAndSee();
+                final Holder holder = fds.get(userData);
 
-                blackhole.consume(holder.buffer().asByteBuffer());
+//                blackhole.consume(holder.buffer().asByteBuffer());
+
+                blackhole.consume(holder.buffer().getString(0,US_ASCII));
+//                final byte[] bytes = new byte[(int) holder.buffer().byteSize()];
+//                MemorySegment.copy(holder.buffer(),JAVA_BYTE,0L, bytes,0,4096);
+//                blackhole.consume(new String(bytes));
 
                 q.free(holder.buffer());
                 q.closeFile(holder.fd());

@@ -1,27 +1,19 @@
 package com.davidvlijmincx.newreader;
 
-import com.davidvlijmincx.generated.io.uring.liburingtest;
 import com.davidvlijmincx.setup.BenchmarkFiles;
 import com.davidvlijmincx.setup.FileTooReadData;
-import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
-import java.util.concurrent.Executors;
 
-import static java.lang.foreign.ValueLayout.JAVA_BYTE;
-import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.nio.charset.StandardCharsets.US_ASCII;
 
 public class Main {
 
@@ -33,9 +25,7 @@ public class Main {
 
         main.readUsingFileChannelWithChannelSetup(filesTooRead);
 
-        main.liburin(q, filesTooRead);
-
-//        main.readFiles(SYMBOL_LOOKUP,filesTooRead[1].sPath());
+    //    main.liburin(q, filesTooRead);
 
     }
 
@@ -45,7 +35,7 @@ public class Main {
 
         try {
             for (int i = 0; i < paths.length; i++) {
-                MemorySegment fd = q.openFile(paths[i].sPath());
+                int fd = q.open(paths[i].sPath());
 
                 MemorySegment buffer = q.submitReadRequest2(fd, paths[i].bufferSize(), i, paths[i].offset());
                 fds.put(i, new Holder(fd, buffer));
@@ -63,7 +53,8 @@ public class Main {
                 Holder holder = fds.get(userData);
                 //    System.out.println("userData = " + userData);
 
-               System.out.println(java.nio.charset.StandardCharsets.UTF_8.decode(holder.buffer().asByteBuffer()));
+                holder.buffer().set(ValueLayout.JAVA_BYTE,4095,(byte)0);
+               System.out.println(holder.buffer().getString(0,US_ASCII));
              //   holder.buffer().getString()
 
                 q.free(holder.buffer());
@@ -88,10 +79,12 @@ public class Main {
         }
 
         for (int i = 0; i < files.length; i++) {
-            final ByteBuffer data = ByteBuffer.allocate(files[i].bufferSize());
+            final ByteBuffer data = ByteBuffer.allocateDirect(files[i].bufferSize());
             FileChannel fc = fileChannels[i];
             fc.read(data, files[i].offset());
-            System.out.println(java.nio.charset.StandardCharsets.UTF_8.decode(data));
+
+            CharBuffer decode = StandardCharsets.US_ASCII.decode(data);
+            System.out.println(decode);
 
         }
 
