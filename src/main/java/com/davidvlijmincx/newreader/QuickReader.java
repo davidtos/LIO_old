@@ -78,7 +78,7 @@ public class QuickReader implements AutoCloseable {
 
         queue_prepped_offset = Linker.nativeLinker().downcallHandle(
                 SYMBOL_LOOKUP.find("read_with_offset").orElseThrow(),
-                FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, JAVA_INT)
+                FunctionDescriptor.ofVoid(ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, JAVA_INT)
         );
 
 
@@ -96,7 +96,7 @@ public class QuickReader implements AutoCloseable {
 
 
     public QuickReader(int QD, boolean polling) {
-        arena = Arena.ofConfined();
+        arena = Arena.ofShared();
 
 
         int ret;
@@ -131,7 +131,12 @@ public class QuickReader implements AutoCloseable {
 
     public int open(String path) {
         try {
-            MemorySegment memorySegment = arena.allocateFrom(path);
+//            MemorySegment memorySegment = arena.allocateFrom(path);
+            var StringBytes = path.getBytes();
+             MemorySegment memorySegment = malloc(StringBytes.length);
+            MemorySegment.copy(StringBytes, 0,memorySegment, JAVA_BYTE, 0,StringBytes.length);
+
+
             return (int) openC.invokeExact(memorySegment,0000000);
         } catch (Throwable e) {
             throw new RuntimeException(e);
@@ -201,7 +206,7 @@ public class QuickReader implements AutoCloseable {
         }
     }
 
-    public void submitReadRequest(MemorySegment fd, MemorySegment buffer, long bufferSize, long userDate, int offset) {
+    public void submitReadRequest(int fd, MemorySegment buffer, long bufferSize, long userDate, int offset) {
         try {
             queue_prepped_offset.invokeExact(ring, fd, buffer, bufferSize, userDate, offset);
         } catch (Throwable e) {

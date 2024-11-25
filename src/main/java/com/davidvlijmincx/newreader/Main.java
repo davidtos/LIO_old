@@ -9,6 +9,7 @@ import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.CharsetDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
@@ -23,9 +24,9 @@ public class Main {
 
         var q = new QuickReader(filesTooRead.length, true);
 
-        main.readUsingFileChannelWithChannelSetup(filesTooRead);
 
-    //    main.liburin(q, filesTooRead);
+        main.readUsingFileChannelWithChannelSetup(filesTooRead);
+        main.liburin(q, filesTooRead);
 
     }
 
@@ -35,27 +36,27 @@ public class Main {
 
         try {
             for (int i = 0; i < paths.length; i++) {
-                int fd = q.open(paths[i].sPath());
+                final int fd = q.open(paths[i].sPath());
 
-                MemorySegment buffer = q.submitReadRequest2(fd, paths[i].bufferSize(), i, paths[i].offset());
+                MemorySegment buffer = q.malloc(paths[i].bufferSize());
                 fds.put(i, new Holder(fd, buffer));
+
+                q.submitReadRequest(fd, buffer, paths[i].bufferSize(), i, paths[i].offset());
+//                final MemorySegment buffer = q.submitReadRequest2(fd, paths[i].bufferSize(), i, paths[i].offset());
 
                 if (i % 100 == 0) {
                     q.submit();
                 }
-
             }
 
             q.submit();
 
             for (int i = 0; i < paths.length; i++) {
-                int userData = q.waitAndSee();
-                Holder holder = fds.get(userData);
-                //    System.out.println("userData = " + userData);
-
-                holder.buffer().set(ValueLayout.JAVA_BYTE,4095,(byte)0);
-               System.out.println(holder.buffer().getString(0,US_ASCII));
-             //   holder.buffer().getString()
+                final int userData = q.waitAndSee();
+                final Holder holder = fds.get(userData);
+//                    System.out.println("userData = " + userData);
+                final CharBuffer decode = US_ASCII.decode(holder.buffer().asByteBuffer());
+                      System.out.println(decode);
 
                 q.free(holder.buffer());
                 q.closeFile(holder.fd());
@@ -79,12 +80,12 @@ public class Main {
         }
 
         for (int i = 0; i < files.length; i++) {
-            final ByteBuffer data = ByteBuffer.allocateDirect(files[i].bufferSize());
+            final ByteBuffer data = ByteBuffer.allocate(files[i].bufferSize());
             FileChannel fc = fileChannels[i];
             fc.read(data, files[i].offset());
-
-            CharBuffer decode = StandardCharsets.US_ASCII.decode(data);
-            System.out.println(decode);
+            data.flip();
+            final CharBuffer decode = US_ASCII.decode(data);
+                 System.out.println(decode);
 
         }
 
@@ -96,44 +97,6 @@ public class Main {
             }
         }
     }
-
-
-//    public static <T> List<T[]> splitArrayInChunks(T[] array, int n) {
-//        List<T[]> chunks = new ArrayList<>();
-//        int chunkSize = (int) Math.ceil((double) array.length / n);
-//
-//        for (int i = 0; i < array.length; i += chunkSize) {
-//            T[] chunk = Arrays.copyOfRange(array, i, Math.min(array.length, i + chunkSize));
-//            chunks.add(chunk);
-//        }
-//
-//        return chunks;
-//    }
-
-
-//public void readFiles(SymbolLookup SYMBOL_LOOKUP, String... paths) throws Exception {
-//
-//    try (var q = new QuickReader(paths.length, true, SYMBOL_LOOKUP); var arena = Arena.ofConfined()) {
-//        for (int i = 0; i < paths.length; i++) {
-//            MemorySegment fd = q.openFile(paths[i]);
-//
-//            MemorySegment buffer =  q.malloc(4); // arena.allocate(4);
-//            q.submitReadRequest(fd, buffer, buffer.byteSize(), i, 0);
-//
-//            q.submit();
-//
-////            MemorySegment pntr = q.readFromCompletion();
-////            int userData = liburingtest.io_uring_cqe_get_data(pntr).get(JAVA_INT, 0);
-//            int userData = q.waitAndSee();
-//            System.out.println("userData = " + userData);
-//            System.out.println(java.nio.charset.StandardCharsets.UTF_8.decode(buffer.asByteBuffer()));
-//
-//            q.free(buffer);
-//          //  q.seen(pntr);
-//            q.closeFile(fd);
-//        }
-//    }
-//}
 
 
 }
