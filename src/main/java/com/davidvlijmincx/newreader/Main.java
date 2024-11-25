@@ -24,29 +24,26 @@ public class Main {
 
         var q = new QuickReader(filesTooRead.length, true);
 
-
-        main.readUsingFileChannelWithChannelSetup(filesTooRead);
+       // main.readUsingFileChannelWithChannelSetup(filesTooRead);
         main.liburin(q, filesTooRead);
 
     }
 
     public void liburin(QuickReader q, FileTooReadData... paths) {
 
-        HashMap<Integer, Holder> fds = new HashMap<>();
+        final HashMap<Integer, Holder> fds = new HashMap<>();
 
         try {
             for (int i = 0; i < paths.length; i++) {
                 final int fd = q.open(paths[i].sPath());
 
-                MemorySegment buffer = q.malloc(paths[i].bufferSize());
+                final MemorySegment buffer = q.submitReadRequest2(fd, paths[i].bufferSize(), i, paths[i].offset());
                 fds.put(i, new Holder(fd, buffer));
-
-                q.submitReadRequest(fd, buffer, paths[i].bufferSize(), i, paths[i].offset());
-//                final MemorySegment buffer = q.submitReadRequest2(fd, paths[i].bufferSize(), i, paths[i].offset());
 
                 if (i % 100 == 0) {
                     q.submit();
                 }
+
             }
 
             q.submit();
@@ -54,10 +51,10 @@ public class Main {
             for (int i = 0; i < paths.length; i++) {
                 final int userData = q.waitAndSee();
                 final Holder holder = fds.get(userData);
-//                    System.out.println("userData = " + userData);
-                final CharBuffer decode = US_ASCII.decode(holder.buffer().asByteBuffer());
-                      System.out.println(decode);
+                   // System.out.println("userData = " + userData);
 
+                System.out.println(StandardCharsets.US_ASCII.decode(holder.buffer().asByteBuffer()));
+//
                 q.free(holder.buffer());
                 q.closeFile(holder.fd());
             }
@@ -65,6 +62,7 @@ public class Main {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+
     }
 
 
@@ -85,7 +83,7 @@ public class Main {
             fc.read(data, files[i].offset());
             data.flip();
             final CharBuffer decode = US_ASCII.decode(data);
-                 System.out.println(decode);
+            System.out.println(decode);
 
         }
 

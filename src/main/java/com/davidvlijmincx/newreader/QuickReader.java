@@ -133,11 +133,9 @@ public class QuickReader implements AutoCloseable {
         try {
 //            MemorySegment memorySegment = arena.allocateFrom(path);
             var StringBytes = path.getBytes();
-             MemorySegment memorySegment = malloc(StringBytes.length);
-            MemorySegment.copy(StringBytes, 0,memorySegment, JAVA_BYTE, 0,StringBytes.length);
-
-
-            return (int) openC.invokeExact(memorySegment,0000000);
+            MemorySegment memorySegment = mallocWithCleaner(StringBytes.length);
+            MemorySegment.copy(StringBytes, 0, memorySegment, JAVA_BYTE, 0, StringBytes.length);
+            return (int) openC.invokeExact(memorySegment, 0000000);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -180,9 +178,18 @@ public class QuickReader implements AutoCloseable {
         }
     }
 
+    public MemorySegment mallocWithCleaner(int size) {
+        try {
+            return ((MemorySegment) malloc.invokeExact(size)).reinterpret(size, arena, this::free);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
     public MemorySegment alignedAlloc(int alignment, int size) {
         try {
-            return ((MemorySegment) alignedAlloc.invokeExact(alignment,size)).reinterpret(size);
+            return ((MemorySegment) alignedAlloc.invokeExact(alignment, size)).reinterpret(size);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
