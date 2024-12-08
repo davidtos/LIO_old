@@ -24,7 +24,7 @@ public class Main {
 
         var q = new QuickReader(filesTooRead.length, true);
 
-       // main.readUsingFileChannelWithChannelSetup(filesTooRead);
+//        main.readUsingFileChannelWithChannelSetup(filesTooRead);
         main.liburin(q, filesTooRead);
 
     }
@@ -53,7 +53,7 @@ public class Main {
                 final Holder holder = fds.get(userData);
                    // System.out.println("userData = " + userData);
 
-                System.out.println(StandardCharsets.US_ASCII.decode(holder.buffer().asByteBuffer()));
+           //     System.out.println(StandardCharsets.US_ASCII.decode(holder.buffer().asByteBuffer()));
 //
                 q.free(holder.buffer());
                 q.closeFile(holder.fd());
@@ -82,8 +82,8 @@ public class Main {
             FileChannel fc = fileChannels[i];
             fc.read(data, files[i].offset());
             data.flip();
-            final CharBuffer decode = US_ASCII.decode(data);
-            System.out.println(decode);
+           // final CharBuffer decode = US_ASCII.decode(data);
+           // System.out.println(decode);
 
         }
 

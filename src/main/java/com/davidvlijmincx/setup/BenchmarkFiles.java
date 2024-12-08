@@ -13,6 +13,7 @@ public class BenchmarkFiles {
   //  public static final Path BASE_BENCHMARK_FILES_DIR = Path.of("/home/david/files");
 //    public static final Path BASE_BENCHMARK_FILES_DIR = Path.of("/media/david/Data2/files");
     public static final Path BASE_BENCHMARK_FILES_DIR = Path.of("/media/david/Data2/text_files");
+//    public static final Path BASE_BENCHMARK_FILES_DIR = Path.of("/mnt/smb_share/text_files");
     public static final Path[] benchmarkFiles;
     public static final String[] benchmarkFilesAsString;
     public static final FileTooReadData[] filesTooRead;

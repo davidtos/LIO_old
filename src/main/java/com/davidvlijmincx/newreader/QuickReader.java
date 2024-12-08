@@ -135,7 +135,9 @@ public class QuickReader implements AutoCloseable {
             var StringBytes = path.getBytes();
             MemorySegment memorySegment = mallocWithCleaner(StringBytes.length);
             MemorySegment.copy(StringBytes, 0, memorySegment, JAVA_BYTE, 0, StringBytes.length);
-            return (int) openC.invokeExact(memorySegment, 0000000);
+            int value = (int) openC.invokeExact(memorySegment, 0000000);
+            //free(memorySegment);
+            return value;
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
