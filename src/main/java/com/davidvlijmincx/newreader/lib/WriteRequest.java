@@ -4,7 +4,7 @@ import java.lang.foreign.MemorySegment;
 
 public class WriteRequest extends Request {
 
-    public WriteRequest(MemorySegment buffer, int fd, JLibUring q) {
+    WriteRequest(MemorySegment buffer, int fd, LibUringLayer q) {
         super(buffer, fd, q);
     }
 

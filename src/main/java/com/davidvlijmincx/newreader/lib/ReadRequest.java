@@ -4,7 +4,7 @@ import java.lang.foreign.MemorySegment;
 
 public class ReadRequest extends Request {
 
-    public ReadRequest(MemorySegment buffer, int fd, JLibUring q) {
+    ReadRequest(MemorySegment buffer, int fd, LibUringLayer q) {
         super(buffer, fd, q);
     }
 

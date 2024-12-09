@@ -5,24 +5,24 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 abstract class Request {
-    CompletableFuture<Void> lock = new CompletableFuture<>();
-    MemorySegment buffer;
-    int fd;
-    JLibUring JLibUring;
+    private final CompletableFuture<Void> lock = new CompletableFuture<>();
+    final MemorySegment buffer;
+    private final  int fd;
+    private final LibUringLayer LibUringLayer;
 
-    public Request(MemorySegment buffer, int fd, JLibUring JLibUring) {
+    Request(MemorySegment buffer, int fd, LibUringLayer LibUringLayer) {
         this.buffer = buffer;
         this.fd = fd;
-        this.JLibUring = JLibUring;
+        this.LibUringLayer = LibUringLayer;
     }
 
     void dataIsSet() {
-        JLibUring.closeFile(fd);
+        LibUringLayer.closeFile(fd);
         lock.complete(null);
     }
 
     void freeBuffer() {
-        JLibUring.free(buffer);
+        LibUringLayer.free(buffer);
     }
 
     void waitForCompletion(){
