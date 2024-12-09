@@ -31,7 +31,7 @@ public class QuickReader implements AutoCloseable {
     private final Arena arena;
 
     static {
-        SymbolLookup SYMBOL_LOOKUP = SymbolLookup.libraryLookup("/home/david/IdeaProjects/C_project/libfilemanager.so", Arena.global());
+        SymbolLookup SYMBOL_LOOKUP = SymbolLookup.libraryLookup("/home/david/cproject/libfilemanager.so", Arena.global());
         Linker LINKER = Linker.nativeLinker();
 
         open_direct = LINKER.downcallHandle(

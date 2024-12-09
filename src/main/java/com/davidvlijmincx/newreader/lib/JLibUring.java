@@ -1,4 +1,4 @@
-package com.davidvlijmincx.newreader;
+package com.davidvlijmincx.newreader.lib;
 
 import com.davidvlijmincx.generated.io.uring.io_uring;
 import com.davidvlijmincx.generated.io.uring.io_uring_params;
@@ -9,8 +9,9 @@ import java.lang.invoke.MethodHandle;
 
 import static java.lang.foreign.ValueLayout.*;
 
-public class QuickRDWR implements AutoCloseable{
-    
+class JLibUring implements AutoCloseable {
+
+    private static final Arena AUTO = Arena.ofAuto();
     private final Arena arena;
     private final MemorySegment ring;
 
@@ -22,43 +23,46 @@ public class QuickRDWR implements AutoCloseable{
     private static final MethodHandle read_with_offset_buffer;
 
     static {
-        SymbolLookup fileManagerLib = SymbolLookup.libraryLookup("/home/david/cproject/libfilemanager.so", Arena.global());
+        SymbolLookup symbolLookup = SymbolLookup.libraryLookup("/home/david/cproject/libfilemanager.so", Arena.global());
 
         Linker linker = Linker.nativeLinker();
+        SymbolLookup defaultedLookup = linker.defaultLookup();
 
         open = linker.downcallHandle(
-                linker.defaultLookup().find("open").orElseThrow(),
+                defaultedLookup.find("open").orElseThrow(),
                 FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT)
         );
 
         free = linker.downcallHandle(
-                linker.defaultLookup().find("free").orElseThrow(),
+                defaultedLookup.find("free").orElseThrow(),
                 FunctionDescriptor.ofVoid(ADDRESS)
         );
 
         malloc = linker.downcallHandle(
-                linker.defaultLookup().find("malloc").orElseThrow(),
+                defaultedLookup.find("malloc").orElseThrow(),
                 FunctionDescriptor.of(ADDRESS, JAVA_INT)
         );
 
         close = linker.downcallHandle(
-                fileManagerLib.find("close").orElseThrow(),
+                defaultedLookup.find("close").orElseThrow(),
                 FunctionDescriptor.ofVoid(JAVA_INT)
         );
 
+        seeAndClose = Linker.nativeLinker().downcallHandle(
+                symbolLookup.find("see_and_close").orElseThrow(),
+                FunctionDescriptor.of(JAVA_INT, ValueLayout.ADDRESS)
+        );
+
         read_with_offset_buffer = Linker.nativeLinker().downcallHandle(
-                fileManagerLib.find("read_with_offset_buffer").orElseThrow(),
+                symbolLookup.find("read_with_offset_buffer").orElseThrow(),
                 FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, JAVA_INT)
         );
 
-        seeAndClose = Linker.nativeLinker().downcallHandle(
-                fileManagerLib.find("see_and_close").orElseThrow(),
-                FunctionDescriptor.of(JAVA_INT, ValueLayout.ADDRESS)
-        );
     }
 
-    public QuickRDWR(int QD, boolean polling) {
+    JLibUring(int queue_depth, boolean polling) {
         this.arena = Arena.ofShared();
+
         int ret;
         if (polling) {
             MemorySegment ioup = arena.allocate(io_uring_params.layout());
@@ -67,10 +71,10 @@ public class QuickRDWR implements AutoCloseable{
             io_uring_params.sq_thread_idle(ioup, ThreadIdleTimeInMilliseconds);
 
             ring = arena.allocate(io_uring.layout());
-            ret = liburingtest.io_uring_queue_init_params(QD, ring, ioup);
+            ret = liburingtest.io_uring_queue_init_params(queue_depth, ring, ioup);
         } else {
             ring = arena.allocate(io_uring.layout());
-            ret = liburingtest.io_uring_queue_init(QD, ring, 0);
+            ret = liburingtest.io_uring_queue_init(queue_depth, ring, 0);
         }
 
         if (ret < 0) {
@@ -78,11 +82,10 @@ public class QuickRDWR implements AutoCloseable{
         }
     }
 
-
-    public int open(String path, int mode, int flags) {
+    int open(String path, int mode, int flags) {
         try {
             var StringBytes = path.getBytes();
-            MemorySegment memorySegment = mallocWithAutoCleaner(StringBytes.length);
+            MemorySegment memorySegment = mallocWithCleaner(StringBytes.length);
             MemorySegment.copy(StringBytes, 0, memorySegment, JAVA_BYTE, 0, StringBytes.length);
             return (int) open.invokeExact(memorySegment, flags, mode);
         } catch (Throwable e) {
@@ -90,15 +93,15 @@ public class QuickRDWR implements AutoCloseable{
         }
     }
 
-    public void closeFile(int fd) {
+    void closeFile(int seg) {
         try {
-            close.invokeExact(fd);
+            close.invokeExact(seg);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
     }
 
-    public MemorySegment malloc(int size) {
+    MemorySegment malloc(int size) {
         try {
             return ((MemorySegment) malloc.invokeExact(size)).reinterpret(size);
         } catch (Throwable e) {
@@ -106,15 +109,15 @@ public class QuickRDWR implements AutoCloseable{
         }
     }
 
-    public MemorySegment mallocWithAutoCleaner(int size) {
+    MemorySegment mallocWithCleaner(int size) {
         try {
-            return ((MemorySegment) malloc.invokeExact(size)).reinterpret(size, Arena.ofAuto(), this::free);
+            return ((MemorySegment) malloc.invokeExact(size)).reinterpret(size, AUTO, this::free);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
     }
 
-    public void free(MemorySegment mem) {
+    void free(MemorySegment mem) {
         try {
             free.invoke(mem);
         } catch (Throwable e) {
@@ -122,13 +125,7 @@ public class QuickRDWR implements AutoCloseable{
         }
     }
 
-    public void prepareWriteRequest(long userData, int fd, MemorySegment bufPtr, int offset) {
-        MemorySegment sqe = liburingtest.io_uring_get_sqe(ring);
-        liburingtest.io_uring_sqe_set_data_long(sqe,  userData);
-        liburingtest.io_uring_prep_write(sqe, fd, bufPtr, (int) bufPtr.byteSize(), offset);
-    }
-
-    public MemorySegment prepareReadRequest(int fd, long bufferSize, long userDate, int offset) {
+    MemorySegment prepareReadRequest(int fd, long bufferSize, long userDate, int offset) {
         try {
             return ((MemorySegment) read_with_offset_buffer.invokeExact(ring, fd, bufferSize, userDate, offset)).reinterpret(bufferSize);
         } catch (Throwable e) {
@@ -136,11 +133,21 @@ public class QuickRDWR implements AutoCloseable{
         }
     }
 
-    public void submit() {
-        liburingtest.io_uring_submit(ring);
+    void prepareWriteRequest(long userData, int fd, MemorySegment bufPtr, int offset) {
+        MemorySegment sqe = liburingtest.io_uring_get_sqe(ring);
+        liburingtest.io_uring_sqe_set_data_long(sqe, userData);
+        liburingtest.io_uring_prep_write(sqe, fd, bufPtr, (int) bufPtr.byteSize(), offset);
     }
 
-    public int waitAndSee() {
+    void submit() {
+        int ret = liburingtest.io_uring_submit(ring);
+
+        if (ret < 0) {
+            System.out.println("io_uring_submit " + ret);
+        }
+    }
+
+    int waitAndSee() {
         try {
             return (int) seeAndClose.invokeExact(ring);
         } catch (Throwable e) {
@@ -148,11 +155,9 @@ public class QuickRDWR implements AutoCloseable{
         }
     }
 
-
-    public void close(){
+    @Override
+    public void close() {
         liburingtest.io_uring_queue_exit(ring);
         arena.close();
     }
-    
-
 }

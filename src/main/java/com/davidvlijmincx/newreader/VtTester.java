@@ -1,14 +1,16 @@
 package com.davidvlijmincx.newreader;
 
-
-import com.davidvlijmincx.setup.BenchmarkFiles;
 import com.davidvlijmincx.setup.FileTooReadData;
 
 import java.lang.foreign.MemorySegment;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
-import java.util.concurrent.locks.StampedLock;
+
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 
 public class VtTester {
@@ -18,9 +20,16 @@ public class VtTester {
     public static void main(String[] args) throws InterruptedException {
 
         VtTester main = new VtTester();
-        FileTooReadData[] filesTooRead = BenchmarkFiles.filesTooRead;
+        //   FileTooReadData[] filesTooRead = BenchmarkFiles.filesTooRead;
 
-        try (var q = new QuickReader(filesTooRead.length, true)) {
+        FileTooReadData[] filesTooRead = new FileTooReadData[]{
+                new FileTooReadData("./tmp_file_read", null, 10, 10, 10),
+                new FileTooReadData("./tmp_file_read", null, 10, 10, 10),
+                new FileTooReadData("./tmp_file_read", null, 10, 10, 10),
+                new FileTooReadData("./tmp_file_read", null, 10, 10, 10),
+        };
+
+        try (var q = new QuickRDWR(filesTooRead.length, true)) {
 
             Thread thread = Thread.ofPlatform().start(() -> {
                 for (int i = 0; i < filesTooRead.length; i++) {
@@ -41,7 +50,7 @@ public class VtTester {
                 for (int i = 0; i < filesTooRead.length; i++) {
                     DataHolder dataHolder = main.submitRead(q, filesTooRead[i], i);
                     executor.execute(() -> {
-                        dataHolder.getData();
+                        System.out.println(UTF_8.decode(dataHolder.getData().asByteBuffer()));
                         dataHolder.freeBuffer();
                     });
                 }
@@ -57,10 +66,21 @@ public class VtTester {
     }
 
 
-    DataHolder submitRead(QuickReader q, FileTooReadData path, int userData) {
-        final int fd = q.open(path.sPath());
-        final MemorySegment buffer = q.submitReadRequest2(fd, path.bufferSize(), userData, path.offset());
+    DataHolder submitRead(QuickRDWR q, FileTooReadData path, int userData) {
+        final int fd = q.open(path.sPath(),0,0);
+        final MemorySegment buffer = q.prepareReadRequest(fd, path.bufferSize(), userData, path.offset());
         DataHolder dataHolder = new DataHolder(buffer, fd, q);
+        requests.put(userData, dataHolder);
+        q.submit();
+        return dataHolder;
+    }
+
+    DataHolder prepareWrite(QuickRDWR q, String path, byte[] content, int userData, int offset){
+        int fd = q.open(path, 0, 2);
+        MemorySegment writeSegment = q.malloc(content.length);
+        MemorySegment.copy(content, 0, writeSegment, JAVA_BYTE, 0, content.length);
+        q.prepareWriteRequest(userData, fd, writeSegment, offset);
+        DataHolder dataHolder = new DataHolder(writeSegment, fd, q);
         requests.put(userData, dataHolder);
         q.submit();
         return dataHolder;
@@ -68,14 +88,12 @@ public class VtTester {
 
 
     static class DataHolder {
-        private StampedLock sl = new StampedLock();
-        private final long stamp;
+        CompletableFuture<Void> lock = new CompletableFuture<>();
         MemorySegment buffer;
         int fd;
-        QuickReader q;
+        QuickRDWR q;
 
-        public DataHolder(MemorySegment buffer, int fd, QuickReader q) {
-            stamp = sl.writeLock();
+        public DataHolder(MemorySegment buffer, int fd, QuickRDWR q) {
             this.buffer = buffer;
             this.fd = fd;
             this.q = q;
@@ -84,16 +102,16 @@ public class VtTester {
 
         public void dataIsSet() {
             q.closeFile(fd);
-            sl.unlockWrite(stamp);
+            lock.complete(null);
         }
 
         public MemorySegment getData() {
-            long l = sl.readLock();
             try {
-                return buffer;
-            } finally {
-                sl.unlockRead(l);
+                lock.get();
+            } catch (InterruptedException | ExecutionException e) {
+                throw new RuntimeException(e);
             }
+            return buffer;
         }
 
         public void freeBuffer() {
