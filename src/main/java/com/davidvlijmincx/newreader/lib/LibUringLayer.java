@@ -158,6 +158,12 @@ class LibUringLayer implements AutoCloseable {
     @Override
     public void close() {
         liburingtest.io_uring_queue_exit(ring);
-        arena.close();
+        try {
+            arena.close();
+        } catch (IllegalStateException e) {
+            if (e.getMessage().contains("Session is acquired by")){
+                // Can ignore, ring is closed by now
+            }
+        }
     }
 }
