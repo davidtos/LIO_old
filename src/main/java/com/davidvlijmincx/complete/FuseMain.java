@@ -2,12 +2,13 @@ package com.davidvlijmincx.complete;
 
 import com.davidvlijmincx.generated.src.org.libfuse.*;
 
-import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
+import java.lang.foreign.*;
+import java.lang.invoke.MethodHandle;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.*;
+
+import static com.davidvlijmincx.generated.src.org.libfuse.fuse_h.C_POINTER;
 
 public class FuseMain {
 
@@ -37,8 +38,25 @@ public class FuseMain {
             fuse_operations.mknod(operationsMemorySegment, fuse_operations.mknod.allocate(FuseMain::doMknod, arena));
             fuse_operations.write(operationsMemorySegment, fuse_operations.write.allocate(FuseMain::doWrite, arena));
 
-            var argumentCount = args.length;
-            fuse_h.fuse_main_real(argumentCount, pointers, operationsMemorySegment, operationsMemorySegment.byteSize(), MemorySegment.NULL);
+
+            Linker linker = Linker.nativeLinker();
+            SymbolLookup symbolLookup = SymbolLookup.libraryLookup("/lib/x86_64-linux-gnu/libfuse3.so.3", arena);
+
+            FunctionDescriptor descriptor = FunctionDescriptor.of(
+                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT,
+                    C_POINTER,
+                    C_POINTER,
+                    ValueLayout.JAVA_LONG,
+                    C_POINTER);
+
+            MethodHandle fuse_main_real = linker.downcallHandle(
+                    symbolLookup.find("fuse_main_real").orElseThrow(), descriptor);
+
+            fuse_main_real.invoke(args.length, pointers, operationsMemorySegment, operationsMemorySegment.byteSize(), MemorySegment.NULL);
+
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -48,7 +66,7 @@ public class FuseMain {
 
     static void addFile(String filename) {
         files.add(filename);
-        filesContent.put(filename,"");
+        filesContent.put(filename, "");
     }
 
     static boolean isFile(String path) {
@@ -72,7 +90,7 @@ public class FuseMain {
         timespec.tv_nsec(stat.st_mtim(statMemorySegment), now.getNano());
 
         stat.st_uid(statMemorySegment, 1000);
-        stat.st_gid(statMemorySegment,1000);
+        stat.st_gid(statMemorySegment, 1000);
 
         if ("/".equals(jPath) || isDir(jPath.substring(1))) {
             stat.st_mode(statMemorySegment, (short) (S_IFDIR | 0755));
@@ -90,18 +108,18 @@ public class FuseMain {
 
     public static int readDir(MemorySegment path, MemorySegment buffer, MemorySegment filler, long offset, MemorySegment fileInfo, int flags) {
 
-        fuse_fill_dir_t.invoke(filler,buffer, fuseScope.allocateFrom("."), MemorySegment.NULL, 0, 0);
-        fuse_fill_dir_t.invoke(filler,buffer, fuseScope.allocateFrom(".."), MemorySegment.NULL, 0, 0);
+        fuse_fill_dir_t.invoke(filler, buffer, fuseScope.allocateFrom("."), MemorySegment.NULL, 0, 0);
+        fuse_fill_dir_t.invoke(filler, buffer, fuseScope.allocateFrom(".."), MemorySegment.NULL, 0, 0);
 
         String jPath = path.getString(0);
 
         if ("/".equals(jPath)) {
             for (String p : directories) {
-                fuse_fill_dir_t.invoke(filler,buffer, fuseScope.allocateFrom(p), MemorySegment.NULL, 0, 0);
+                fuse_fill_dir_t.invoke(filler, buffer, fuseScope.allocateFrom(p), MemorySegment.NULL, 0, 0);
             }
 
             for (String p : files) {
-                fuse_fill_dir_t.invoke(filler,buffer, fuseScope.allocateFrom(p), MemorySegment.NULL, 0, 0);
+                fuse_fill_dir_t.invoke(filler, buffer, fuseScope.allocateFrom(p), MemorySegment.NULL, 0, 0);
             }
         }
 
@@ -140,7 +158,7 @@ public class FuseMain {
 
     static int doWrite(MemorySegment path, MemorySegment buffer, long size, long offset, MemorySegment info) {
         String jPath = path.getString(0).substring(1);
-        filesContent.put(jPath, buffer.getString(offset,java.nio.charset.StandardCharsets.UTF_8));
+        filesContent.put(jPath, buffer.getString(offset, java.nio.charset.StandardCharsets.UTF_8));
         return Math.toIntExact(size);
     }
 
